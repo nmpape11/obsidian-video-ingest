@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from video_ingest.frontmatter import FrontmatterError, get, set_fields, split
+from video_ingest.frontmatter import FrontmatterError, get, render, set_fields, split
 
 NOTE = """---
 url: https://tiktok.com/@a/video/1
@@ -62,3 +62,20 @@ def test_set_fields_is_idempotent():
     fields = {"fetch_status": "ok", "fetch_error": None}
     once = set_fields(NOTE, fields)
     assert set_fields(once, fields) == once
+
+
+@pytest.mark.parametrize(
+    ("value", "rendered"),
+    [
+        ("ok", "ok"),
+        ("to-try", "to-try"),
+        ("user.name_1", "user.name_1"),
+        ("true", '"true"'),
+        ("No", '"No"'),
+        ("123abc", '"123abc"'),
+        ("two words", '"two words"'),
+        ("", '""'),
+    ],
+)
+def test_render_quotes_only_when_needed(value, rendered):
+    assert render(value) == rendered

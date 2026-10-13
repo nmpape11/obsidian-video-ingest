@@ -11,6 +11,10 @@ import re
 from datetime import date
 
 KEY_RE = re.compile(r"^([A-Za-z_][\w-]*):(.*)$")
+# Identifier-like strings ("ok", "to-try", "fairfiteats") are written unquoted, matching
+# how Obsidian's Properties panel writes them.
+BARE_RE = re.compile(r"^[A-Za-z_][\w.-]*$")
+YAML_KEYWORDS = {"true", "false", "yes", "no", "on", "off", "null", "y", "n"}
 
 Scalar = str | int | float | bool | date | None
 
@@ -50,8 +54,11 @@ def render(value: Scalar) -> str:
         return str(value)
     if isinstance(value, date):
         return value.isoformat()
+    text = str(value)
+    if BARE_RE.match(text) and text.lower() not in YAML_KEYWORDS:
+        return text
     # JSON strings are valid YAML double-quoted scalars.
-    return json.dumps(str(value), ensure_ascii=False)
+    return json.dumps(text, ensure_ascii=False)
 
 
 def set_fields(text: str, fields: dict[str, Scalar]) -> str:
