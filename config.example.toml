@@ -1,0 +1,13 @@
+# Copy to config.toml (gitignored) and edit. CLI flags override these values.
+
+# Vault root. Point at ./sandbox (a copy) until you trust the pipeline.
+vault = "./sandbox"
+
+# Inbox notes, relative to the vault, processed in order.
+inboxes = [
+  "00 Inbox/tiktok.md",
+  "00 Inbox/instagram.md",
+]
+
+# Folder that receives one note per video, relative to the vault.
+out = "10 Saved Videos"

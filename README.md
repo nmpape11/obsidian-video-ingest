@@ -10,6 +10,7 @@ searchable note per video.
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-video-ingest --vault ./sandbox --inbox "00 Inbox/tiktok.md"           # preview
-video-ingest --vault ./sandbox --inbox "00 Inbox/tiktok.md" --apply   # write
+cp config.example.toml config.toml   # then edit vault/inboxes
+video-ingest           # preview
+video-ingest --apply   # write
 ```
