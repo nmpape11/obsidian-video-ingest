@@ -9,8 +9,9 @@ searchable note per video.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev,fetch]"
 cp config.example.toml config.toml   # then edit vault/inboxes
 video-ingest           # preview
-video-ingest --apply   # write
+video-ingest --apply   # one note per inbox link
+video-fetch --apply    # add caption + transcript to each note
 ```
