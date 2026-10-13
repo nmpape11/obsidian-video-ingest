@@ -34,7 +34,22 @@ def norm(text: str) -> str:
     return "".join(ch for ch in text.lower() if ch.isalnum())
 
 
+def within_one_edit(a: str, b: str) -> bool:
+    """At most one substitution, insertion or deletion apart."""
+    if abs(len(a) - len(b)) > 1:
+        return False
+    i = 0
+    while i < min(len(a), len(b)) and a[i] == b[i]:
+        i += 1
+    if len(a) == len(b):
+        return a[i + 1 :] == b[i + 1 :]
+    return a[i:] == b[i + 1 :] if len(a) < len(b) else a[i + 1 :] == b[i:]
+
+
 def similar(a: str, b: str) -> bool:
+    # On short words one misread letter ("Fiour") already falls below the ratio.
+    if min(len(a), len(b)) >= 4 and within_one_edit(a, b):
+        return True
     m = SequenceMatcher(None, a, b, autojunk=False)
     return m.real_quick_ratio() >= SAME_LINE_RATIO and m.ratio() >= SAME_LINE_RATIO
 

@@ -1,6 +1,6 @@
 import pytest
 
-from video_ingest.ocr import consolidate, is_noise, norm
+from video_ingest.ocr import consolidate, is_noise, norm, within_one_edit
 
 
 def frames(*texts):
@@ -79,3 +79,24 @@ def test_consolidate_collapses_whitespace():
 def test_consolidate_empty():
     assert consolidate([]) == []
     assert consolidate(frames("TikTok | @x")) == []
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "expected"),
+    [
+        ("flour", "fiour", True),
+        ("flour", "flours", True),
+        ("flour", "lour", True),
+        ("flour", "flower", False),
+        ("salt", "salt", True),
+        ("abc", "abcde", False),
+    ],
+)
+def test_within_one_edit(a, b, expected):
+    assert within_one_edit(a, b) is expected
+    assert within_one_edit(b, a) is expected
+
+
+def test_consolidate_merges_one_letter_misreads_of_short_words():
+    assert consolidate(frames("Flour", "Flour", "Fiour")) == ["Flour"]
+    assert consolidate(frames("Salt", "Sugar")) == ["Salt", "Sugar"]
