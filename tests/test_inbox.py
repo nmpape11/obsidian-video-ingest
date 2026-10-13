@@ -1,6 +1,12 @@
 import pytest
 
-from video_ingest.inbox import detect_platform, normalize_url, parse_inbox, parse_line
+from video_ingest.inbox import (
+    detect_platform,
+    fetchable_url,
+    normalize_url,
+    parse_inbox,
+    parse_line,
+)
 
 
 @pytest.mark.parametrize(
@@ -55,3 +61,15 @@ def test_parse_inbox_keeps_non_entries():
     entries, kept = parse_inbox(text)
     assert [e.url for e in entries] == ["https://tiktok.com/@a/video/1"]
     assert kept == ["# Heading", "", "note https://example.com"]
+
+
+@pytest.mark.parametrize(
+    ("stored", "expected"),
+    [
+        ("https://tiktok.com/@a/video/1", "https://www.tiktok.com/@a/video/1"),
+        ("https://instagram.com/reel/X", "https://www.instagram.com/reel/X"),
+        ("https://vm.tiktok.com/ZM1", "https://vm.tiktok.com/ZM1"),
+    ],
+)
+def test_fetchable_url(stored, expected):
+    assert fetchable_url(stored) == expected
