@@ -2,7 +2,7 @@ import pytest
 
 from video_ingest import frontmatter
 from video_ingest.enrich import EnrichResult
-from video_ingest.enrich_cli import main, vocabulary
+from video_ingest.enrich_cli import main, tag_counts
 
 NOTE = """---
 url: https://tiktok.com/@x/video/{name}
@@ -74,10 +74,8 @@ def read(vault, name):
     return (vault / "notes" / f"{name}.md").read_text()
 
 
-def test_vocabulary_collects_categories_and_tags(vault):
-    cats, tags = vocabulary(vault / "notes", ["Self Help", "gym"])
-    assert cats == ["Self Help", "gym"]  # "Gym" from notes is the same category as the seed
-    assert tags == {"squat": 1, "legs": 1}
+def test_tag_counts(vault):
+    assert tag_counts(vault / "notes") == {"squat": 1, "legs": 1}
 
 
 def test_preview_calls_nothing(vault):
@@ -95,11 +93,12 @@ def test_apply_enriches_pending_ocr_done_notes(vault):
     assert frontmatter.get(read(vault, "no-ocr"), "processed") == "false"
 
 
-def test_vocabulary_grows_during_run(vault):
+def test_categories_are_the_fixed_list_and_tags_grow_during_run(vault):
     enricher = FakeEnricher()
     run(vault, enricher, "--apply")
+    _, cats_a, _ = enricher.calls[0]
     _, cats_b, tags_b = enricher.calls[1]
-    assert "Cooking" in cats_b and "Gym" in cats_b
+    assert cats_a == cats_b == ["Cooking", "Gym", "Self Help", "Other"]
     assert "tag-a" in tags_b and "squat" in tags_b
 
 
@@ -142,7 +141,9 @@ def test_enrich_config(vault, tmp_path):
     assert (seen["cfg"].enrich.model, seen["cfg"].enrich.effort) == ("claude-sonnet-5-5", "medium")
 
 
-@pytest.mark.parametrize("body", ['effort = "huge"', 'categories = "Gym"', "sleep = -1"])
+@pytest.mark.parametrize(
+    "body", ['effort = "huge"', 'categories = "Gym"', "categories = []", "sleep = -1"]
+)
 def test_bad_enrich_config(tmp_path, body):
     from video_ingest.config import ConfigError, load_config
 

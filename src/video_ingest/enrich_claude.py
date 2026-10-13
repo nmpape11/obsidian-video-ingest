@@ -5,9 +5,10 @@ Requires the enrich extra (pip install -e ".[enrich]") and ANTHROPIC_API_KEY.
 
 from __future__ import annotations
 
-from typing import Any
+from functools import lru_cache
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 
 try:
     import anthropic
@@ -44,6 +45,17 @@ class Enrichment(BaseModel):
     tags: list[str]
 
 
+@lru_cache
+def schema_for(categories: tuple[str, ...]) -> type[BaseModel]:
+    """Enrichment with categories constrained to an enum of the allowed names, so
+    structured output can only return standard, queryable categories."""
+    return create_model(
+        "Enrichment",
+        __base__=Enrichment,
+        categories=(list[Literal[categories]], ...),
+    )
+
+
 class ClaudeEnricher:
     def __init__(
         self,
@@ -61,7 +73,7 @@ class ClaudeEnricher:
         self.effort = effort
 
     def enrich(
-        self, sources: Sources, known_categories: list[str], known_tags: list[str]
+        self, sources: Sources, categories: list[str], known_tags: list[str]
     ) -> EnrichResult:
         kwargs: dict[str, Any] = {}
         if self.model in FALLBACK_MODELS:
@@ -77,11 +89,11 @@ class ClaudeEnricher:
                 messages=[
                     {
                         "role": "user",
-                        "content": build_user_message(sources, known_categories, known_tags),
+                        "content": build_user_message(sources, categories, known_tags),
                     }
                 ],
                 output_config={"effort": self.effort},
-                output_format=Enrichment,
+                output_format=schema_for(tuple(categories)) if categories else Enrichment,
                 **kwargs,
             )
         except FATAL_ERRORS:
@@ -95,5 +107,5 @@ class ClaudeEnricher:
             return EnrichResult(ok=False, error=f"no parsable output ({response.stop_reason})")
         out = response.parsed_output
         return to_result(
-            out.summary, out.key_points, out.categories, out.tags, known_categories, response.model
+            out.summary, out.key_points, out.categories, out.tags, categories, response.model
         )

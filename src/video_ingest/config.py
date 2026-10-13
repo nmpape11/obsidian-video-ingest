@@ -36,8 +36,9 @@ class OcrConfig:
 class EnrichConfig:
     model: str = "claude-opus-5-5"
     effort: str = "low"  # low | medium | high | xhigh | max
-    # Categories to offer even before any note uses them (shown as [[Name]] links).
-    categories: list[str] = field(default_factory=list)
+    # The fixed category list (written as [[Name]] links). Claude can only pick from it,
+    # so category queries stay exact; Other catches everything else.
+    categories: list[str] = field(default_factory=lambda: ["Cooking", "Gym", "Self Help", "Other"])
     sleep: float = 0.0
 
 
@@ -90,8 +91,12 @@ def load_config(path: Path | None) -> Config:
         if cfg.enrich.effort not in EFFORTS:
             raise ConfigError(f"[enrich] effort must be one of {', '.join(sorted(EFFORTS))}")
         cats = cfg.enrich.categories
-        if not isinstance(cats, list) or not all(isinstance(c, str) for c in cats):
-            raise ConfigError("[enrich] categories must be a list of strings")
+        if (
+            not isinstance(cats, list)
+            or not cats
+            or not all(isinstance(c, str) and c for c in cats)
+        ):
+            raise ConfigError("[enrich] categories must be a non-empty list of names")
     return cfg
 
 

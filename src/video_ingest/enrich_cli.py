@@ -13,7 +13,7 @@ from pathlib import Path
 from . import frontmatter
 from .config import EFFORTS, Config, ConfigError, load_config
 from .enrich import Enricher
-from .notes import note_categories, note_sources, with_enrichment
+from .notes import note_sources, with_enrichment
 from .vault import VaultError, notes_dir, pending_notes, write_atomic
 
 MAX_KNOWN_TAGS = 150
@@ -38,21 +38,19 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def vocabulary(out_dir: Path, seed: list[str]) -> tuple[list[str], Counter[str]]:
-    """Categories (config seed first, then those used in notes) and tag counts."""
-    categories = list(seed)
+def tag_counts(out_dir: Path) -> Counter[str]:
+    """How often each tag is used across notes, to nudge Claude toward existing spellings."""
     tags: Counter[str] = Counter()
     for path in sorted(out_dir.rglob("*.md")):
         if any(part.startswith(".") for part in path.relative_to(out_dir).parts):
             continue
         try:
-            text = path.read_text(encoding="utf-8")
-            note_cats = note_categories(text)
-            tags.update(t.lower() for t in frontmatter.get_list(text, "tags"))
+            tags.update(
+                t.lower() for t in frontmatter.get_list(path.read_text(encoding="utf-8"), "tags")
+            )
         except (frontmatter.FrontmatterError, UnicodeDecodeError):
             continue
-        categories += [c for c in note_cats if c.lower() not in {k.lower() for k in categories}]
-    return categories, tags
+    return tags
 
 
 def main(
@@ -93,7 +91,9 @@ def main(
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    categories, tags = vocabulary(out_dir, cfg.enrich.categories)
+    # Categories are a fixed list, so queries by category stay exact; tags are free-form.
+    categories = cfg.enrich.categories
+    tags = tag_counts(out_dir)
     ok = failed = 0
     for i, path in enumerate(todo, 1):
         if i > 1 and cfg.enrich.sleep:
@@ -115,9 +115,6 @@ def main(
             print(f"FAILED: {result.error}")
             continue
         ok += 1
-        categories += [
-            c for c in result.categories if c.lower() not in {k.lower() for k in categories}
-        ]
         tags.update(result.tags)
         note = f"; kept your {', '.join(kept)}" if kept else ""
         print(f"ok [{', '.join(result.categories)}] {', '.join(result.tags)}{note}")

@@ -103,4 +103,4 @@ def test_example_config_enrich_section():
     example = Path(__file__).parents[1] / "config.example.toml"
     enrich = load_config(example).enrich
     assert (enrich.model, enrich.effort) == ("claude-opus-5-5", "low")
-    assert enrich.categories == ["Cooking", "Gym", "Self Help"]
+    assert enrich.categories == ["Cooking", "Gym", "Self Help", "Other"]

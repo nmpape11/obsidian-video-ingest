@@ -12,7 +12,30 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 DEFAULT_MODEL = "claude-opus-5-5"
+FALLBACK_CATEGORY = "Other"
 TAG_RE = re.compile(r"[^a-z0-9]+")
+# Reach-hashtags that say nothing about the content.
+GENERIC_TAGS = {
+    "fyp",
+    "fy",
+    "foryou",
+    "foryoupage",
+    "fypage",
+    "viral",
+    "viralvideo",
+    "trending",
+    "explore",
+    "explorepage",
+    "reels",
+    "reel",
+    "instagram",
+    "tiktok",
+    "tiktokmademebuyit",
+    "xyzbca",
+    "capcut",
+    "foryourpage",
+    "fypシ",
+}
 
 SYSTEM_PROMPT = """\
 You turn a saved short-form video (TikTok or Instagram) into an entry in the user's \
@@ -43,11 +66,14 @@ without bullets or markdown. For a recipe: servings and macros if given, then ea
 ingredient with its quantity, then the steps condensed (keep temperatures and times). \
 For exercise: exercises, sets and reps, form cues. For advice: the concrete takeaways. \
 Rejoin text that OCR split across lines; skip labels, watermarks and hashtags.
-- categories: one or two broad areas. Reuse a known category exactly as written \
-whenever one fits; only create a new one (Title Case, one or two words) if none does.
-- tags: three to eight specific themes that cut across categories (ingredients, goals, \
-methods, e.g. high-protein, meal-prep, air-fryer). Lowercase, hyphenated. Reuse known \
-tags when they fit.
+- categories: from allowed_categories only, written exactly as listed; they are the \
+fixed folders the user filters by. Usually one; two only when the video clearly \
+belongs to both. Use Other only when none of the rest fit.
+- tags: three to eight hashtag-style topic tags, lowercase and hyphenated, without the #. \
+The video's own hashtags are a good source when they describe the content \
+(#mealprep becomes meal-prep); skip reach hashtags like fyp, foryou, viral or trending. \
+Add specific ingredients, goals and methods the video is about (high-protein, \
+air-fryer). Use a known tag's spelling when it means the same thing.
 
 If the sources carry almost nothing (only hashtags, say), keep the summary short, say \
 what little is known, and return few or no key points rather than guessing."""
@@ -79,11 +105,11 @@ class EnrichResult:
 
 class Enricher(Protocol):
     def enrich(
-        self, sources: Sources, known_categories: list[str], known_tags: list[str]
+        self, sources: Sources, categories: list[str], known_tags: list[str]
     ) -> EnrichResult: ...
 
 
-def build_user_message(sources: Sources, known_categories: list[str], known_tags: list[str]) -> str:
+def build_user_message(sources: Sources, categories: list[str], known_tags: list[str]) -> str:
     def section(name: str, body: str) -> str:
         return f"<{name}>\n{body.strip() or '(none)'}\n</{name}>"
 
@@ -94,24 +120,22 @@ def build_user_message(sources: Sources, known_categories: list[str], known_tags
             section("caption", sources.caption),
             section("transcript", sources.transcript),
             section("on_screen_text", sources.on_screen_text),
-            section("known_categories", ", ".join(known_categories)),
+            section("allowed_categories", ", ".join(categories)),
             section("known_tags", ", ".join(known_tags)),
         ]
     )
 
 
 def clean_tag(tag: str) -> str:
-    return TAG_RE.sub("-", tag.lower().lstrip("#")).strip("-")
+    """Hashtag-style tag: lowercase, hyphenated, no '#'. "" for generic reach hashtags."""
+    tag = TAG_RE.sub("-", tag.lower().lstrip("#")).strip("-")
+    return "" if tag.replace("-", "") in GENERIC_TAGS else tag
 
 
-def clean_category(name: str, known: list[str]) -> str:
-    """Strip [[...]] wrappers and snap to a known category's exact spelling."""
+def clean_category(name: str, allowed: list[str]) -> str | None:
+    """The allowed category's exact spelling, or None if the name isn't one of them."""
     name = name.strip().removeprefix("[[").removesuffix("]]").strip()
-    known_match = next((k for k in known if k.lower() == name.lower()), None)
-    if known_match:
-        return known_match
-    # New categories become note links, so "cooking" and "Cooking" must not both appear.
-    return name.title() if name.islower() else name
+    return next((a for a in allowed if a.lower() == name.lower()), None)
 
 
 def dedupe(items: list[str]) -> list[str]:
@@ -124,15 +148,22 @@ def to_result(
     key_points: list[str],
     categories: list[str],
     tags: list[str],
-    known_categories: list[str],
+    allowed: list[str],
     model: str,
 ) -> EnrichResult:
-    """Normalize model output: whitespace, stray bullets, tag format, category spelling."""
+    """Normalize model output: whitespace, stray bullets, tag format, category spelling.
+
+    Categories outside the allowed list are dropped (the schema already prevents them);
+    a note always gets at least one, falling back to Other when it's allowed.
+    """
+    cats = dedupe([c for c in (clean_category(c, allowed) for c in categories) if c])[:2]
+    if not cats and FALLBACK_CATEGORY in allowed:
+        cats = [FALLBACK_CATEGORY]
     return EnrichResult(
         ok=True,
         summary=" ".join(summary.split()),
         key_points=[kp.strip().lstrip("-•* ").strip() for kp in key_points if kp.strip()],
-        categories=dedupe([clean_category(c, known_categories) for c in categories]),
+        categories=cats,
         tags=dedupe([clean_tag(t) for t in tags]),
         model=model,
     )
