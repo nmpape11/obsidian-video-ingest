@@ -11,6 +11,7 @@ from datetime import date
 from pathlib import Path
 
 from . import frontmatter
+from .enrich import EnrichResult, Sources
 from .fetch import FetchResult
 from .inbox import Entry, normalize_url, parse_inbox
 from .ocr import OcrResult
@@ -120,6 +121,11 @@ def apply_plan(plan: Plan, inbox_path: Path, created: date) -> None:
 SOURCE_HEADING = "## Source"
 TRANSCRIPT_TITLE = "Transcript"
 OCR_TITLE = "On-screen text"
+CAPTION_TITLE = "Caption"
+SUMMARY_HEADING = "## Summary"
+KEY_POINTS_HEADING = "## Key points"
+PLACEHOLDER_RE = re.compile(r"^\s*(?:[-*]\s*)?$")
+WIKILINK_RE = re.compile(r"^\[\[(.+?)\]\]$")
 
 
 def callout(kind: str, title: str, text: str) -> str:
@@ -153,7 +159,7 @@ def with_fetch_result(text: str, result: FetchResult, fetched: date) -> str:
 
     blocks = []
     if result.caption:
-        blocks.append(callout("info", "Caption", result.caption))
+        blocks.append(callout("info", CAPTION_TITLE, result.caption))
     if result.transcript:
         blocks.append(
             callout("quote", f"{TRANSCRIPT_TITLE} ({result.transcript_source})", result.transcript)
@@ -208,3 +214,80 @@ def with_ocr_result(text: str, result: OcrResult) -> str:
     return append_to_section(
         text, SOURCE_HEADING, callout("abstract", f"{OCR_TITLE} ({result.source})", body)
     )
+
+
+def fill_section(text: str, heading: str, content: str) -> tuple[str, bool]:
+    """Put content under `heading` if the section is empty or only a "- " placeholder.
+
+    Returns (text, filled). Never overwrites what someone wrote there.
+    """
+    lines = text.rstrip("\n").split("\n")
+    if heading not in lines:
+        return text, False
+    start = lines.index(heading)
+    end = next(
+        (i for i in range(start + 1, len(lines)) if re.match(r"#{1,2} ", lines[i])), len(lines)
+    )
+    if not all(PLACEHOLDER_RE.match(line) for line in lines[start + 1 : end]):
+        return text, False
+    rest = lines[end:]
+    out = lines[: start + 1] + ["", *content.split("\n")] + ([""] + rest if rest else [])
+    return "\n".join(out) + "\n", True
+
+
+def note_sources(text: str, title: str) -> Sources:
+    return Sources(
+        title=frontmatter.get(text, "source_title") or title,
+        platform=frontmatter.get(text, "platform") or "",
+        author=frontmatter.get(text, "author") or "",
+        caption=callout_text(text, CAPTION_TITLE),
+        transcript=callout_text(text, TRANSCRIPT_TITLE),
+        on_screen_text="\n".join(
+            line.removeprefix("- ") for line in callout_text(text, OCR_TITLE).split("\n")
+        ).strip(),
+    )
+
+
+def note_categories(text: str) -> list[str]:
+    """Category names from "[[Name]]" (or bare) entries in the category list."""
+    names = []
+    for item in frontmatter.get_list(text, "category"):
+        m = WIKILINK_RE.match(item.strip())
+        names.append(m.group(1) if m else item.strip())
+    return [n for n in names if n]
+
+
+def merge(existing: list[str], new: list[str]) -> list[str]:
+    seen = {x.lower() for x in existing}
+    return existing + [x for x in new if x.lower() not in seen and not seen.add(x.lower())]
+
+
+def with_enrichment(text: str, result: EnrichResult, enriched: date) -> tuple[str, list[str]]:
+    """Record an enrichment. Returns (text, sections left alone because they had content)."""
+    if not result.ok:
+        fields = {"enrich_status": "failed", "enrich_error": result.error}
+        return frontmatter.set_fields(text, fields), []
+
+    categories = merge(note_categories(text), result.categories)
+    text = frontmatter.set_fields(
+        text,
+        {
+            "category": [f"[[{c}]]" for c in categories],
+            "tags": merge(frontmatter.get_list(text, "tags"), result.tags),
+            "processed": True,
+            "enriched": enriched,
+            "enrich_model": result.model or None,
+            "enrich_status": None,
+            "enrich_error": None,
+        },
+    )
+    kept = []
+    text, filled = fill_section(text, SUMMARY_HEADING, result.summary)
+    if not filled:
+        kept.append(SUMMARY_HEADING)
+    if result.key_points:
+        points = "\n".join(f"- {p}" for p in result.key_points)
+        text, filled = fill_section(text, KEY_POINTS_HEADING, points)
+        if not filled:
+            kept.append(KEY_POINTS_HEADING)
+    return text, kept
