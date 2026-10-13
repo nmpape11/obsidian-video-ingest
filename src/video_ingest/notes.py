@@ -19,11 +19,11 @@ FRONTMATTER_URL_RE = re.compile(r"^url:\s*[\"']?(\S+?)[\"']?\s*$", re.MULTILINE)
 
 def safe_filename(title: str) -> str:
     """Strip emoji, symbols and characters Obsidian/filesystems reject."""
-    kept = "".join(
-        ch for ch in title
+    spaced = ILLEGAL_CHARS_RE.sub(" ", title)
+    name = "".join(
+        ch for ch in spaced
         if unicodedata.category(ch)[0] in "LNZP" or ch in "-_'&+,"
     )
-    name = ILLEGAL_CHARS_RE.sub(" ", kept)
     name = re.sub(r"\s+", " ", name).strip(" .")
     if len(name) > MAX_NAME_LEN:
         name = name[:MAX_NAME_LEN].rsplit(" ", 1)[0].strip(" .")
