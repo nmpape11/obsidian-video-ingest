@@ -1,0 +1,81 @@
+import pytest
+
+from video_ingest.ocr import consolidate, is_noise, norm
+
+
+def frames(*texts):
+    """Each argument is one image: a '|'-separated string of OCR lines."""
+    return [[t.strip() for t in img.split("|") if t.strip()] for img in texts]
+
+
+def test_norm():
+    assert norm("Oncé oil is hot; fry!") == "oncéoilishotfry"
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["TikTok", "JTikTok", "TikToK", "TikTOk", "@cookingwithadriano", "ok", "a.", "  "],
+)
+def test_is_noise(text):
+    assert is_noise(text, set())
+
+
+@pytest.mark.parametrize("text", ["Salt", "Add milk", "70g Protein", "TikTok famous pasta"])
+def test_is_not_noise(text):
+    assert not is_noise(text, set())
+
+
+def test_consolidate_dedupes_across_frames_in_first_seen_order():
+    images = frames(
+        "TikTok | @chef | Chicken breast | Flour",
+        "Chicken breast | Flour | TikTok",
+        "Slice chicken breasts in half | @chef",
+        "Chicken breast",  # reappears later: still listed once, in its first position
+    )
+    assert consolidate(images) == ["Chicken breast", "Flour", "Slice chicken breasts in half"]
+
+
+def test_consolidate_picks_most_common_spelling():
+    images = frames(
+        "Oncé oil is hot; fry breaded",
+        "Once oil is hot, fry breaded",
+        "Once oil is hot, fry breaded",
+        "Once oil is hot, fry breaded",
+    )
+    assert consolidate(images) == ["Once oil is hot, fry breaded"]
+
+
+def test_consolidate_keeps_distinct_but_similar_lines():
+    assert consolidate(frames("1 Tbsp Ranch Seasoning", "2 Tbsp Ranch Seasoning")) == [
+        "1 Tbsp Ranch Seasoning",
+        "2 Tbsp Ranch Seasoning",
+    ]
+
+
+def test_consolidate_drops_handle_seen_without_at_sign():
+    images = frames("@nikitafair | 70g Protein", "nikitafair | 450 Calories")
+    assert consolidate(images) == ["70g Protein", "450 Calories"]
+
+
+def test_consolidate_uses_given_handles():
+    assert consolidate(frames("fairfiteats | Salt"), handles={"FairFitEats"}) == ["Salt"]
+
+
+def test_consolidate_drops_burned_in_subtitles_but_keeps_short_lines():
+    transcript = "Next, we're going to take out 20 ounces of chicken breast, add salt."
+    images = frames("we're going to take out 20 ounces | Salt | 20oz Chicken Breast")
+    assert consolidate(images, transcript=transcript) == ["Salt", "20oz Chicken Breast"]
+
+
+def test_consolidate_merges_jitter_that_keeps_digits():
+    images = frames("cutlets for 5-7.minutes on", "cutlets for 5-7 minutes on")
+    assert len(consolidate(images)) == 1
+
+
+def test_consolidate_collapses_whitespace():
+    assert consolidate(frames("Fresh   parsley ")) == ["Fresh parsley"]
+
+
+def test_consolidate_empty():
+    assert consolidate([]) == []
+    assert consolidate(frames("TikTok | @x")) == []
