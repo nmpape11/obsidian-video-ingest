@@ -28,11 +28,12 @@ def pending_notes(
     out_dir: Path,
     status_key: str,
     retry_failed: bool,
-    require: dict[str, str] | None = None,
+    require: dict[str, str | set[str]] | None = None,
 ) -> list[Path]:
     """Notes with a url whose status_key is unset (or "failed", when retrying).
 
-    require: other frontmatter values a note must have, e.g. {"fetch_status": "ok"}.
+    require: other frontmatter values a note must have, e.g. {"fetch_status": "ok"};
+    a set allows any of its values.
     Hidden folders (.trash, .obsidian) are skipped. Sorted by path.
     """
     todo = []
@@ -43,7 +44,10 @@ def pending_notes(
             text = path.read_text(encoding="utf-8")
             url = frontmatter.get(text, "url")
             status = frontmatter.get(text, status_key)
-            ok = all(frontmatter.get(text, k) == v for k, v in (require or {}).items())
+            ok = all(
+                frontmatter.get(text, k) in (v if isinstance(v, set) else {v})
+                for k, v in (require or {}).items()
+            )
         except (frontmatter.FrontmatterError, UnicodeDecodeError):
             continue
         if url and ok and (status is None or (retry_failed and status == "failed")):

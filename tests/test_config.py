@@ -97,3 +97,10 @@ def test_bad_ocr_config(tmp_path, body):
 def test_example_config_ocr_section():
     example = Path(__file__).parents[1] / "config.example.toml"
     assert load_config(example).ocr.fps == 1.0
+
+
+def test_example_config_enrich_section():
+    example = Path(__file__).parents[1] / "config.example.toml"
+    enrich = load_config(example).enrich
+    assert (enrich.model, enrich.effort) == ("claude-opus-5-5", "low")
+    assert enrich.categories == ["Cooking", "Gym", "Self Help"]

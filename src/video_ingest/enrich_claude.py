@@ -9,6 +9,19 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+try:
+    import anthropic
+
+    # Setup problems that would fail every note the same way: stop the run instead.
+    FATAL_ERRORS: tuple[type[Exception], ...] = (
+        anthropic.AuthenticationError,
+        anthropic.PermissionDeniedError,
+        anthropic.NotFoundError,
+    )
+except ImportError:  # pragma: no cover - the enrich extra installs it
+    anthropic = None
+    FATAL_ERRORS = ()
+
 from .enrich import (
     DEFAULT_MODEL,
     SYSTEM_PROMPT,
@@ -40,12 +53,8 @@ class ClaudeEnricher:
         client: Any = None,
     ) -> None:
         if client is None:
-            try:
-                import anthropic
-            except ImportError as exc:
-                raise RuntimeError(
-                    'anthropic not installed; run: pip install -e ".[enrich]"'
-                ) from exc
+            if anthropic is None:
+                raise RuntimeError('anthropic not installed; run: pip install -e ".[enrich]"')
             client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY
         self.client = client
         self.model = model
@@ -75,7 +84,9 @@ class ClaudeEnricher:
                 output_format=Enrichment,
                 **kwargs,
             )
-        except Exception as exc:  # API/network errors: record and move on to the next note
+        except FATAL_ERRORS:
+            raise
+        except Exception as exc:  # per-note API/network errors: record and move on
             return EnrichResult(ok=False, error=f"{type(exc).__name__}: {exc}"[:200])
 
         if response.stop_reason == "refusal":

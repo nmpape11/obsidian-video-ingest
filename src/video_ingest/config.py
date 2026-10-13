@@ -33,12 +33,25 @@ class OcrConfig:
 
 
 @dataclass
+class EnrichConfig:
+    model: str = "claude-opus-5-5"
+    effort: str = "low"  # low | medium | high | xhigh | max
+    # Categories to offer even before any note uses them (shown as [[Name]] links).
+    categories: list[str] = field(default_factory=list)
+    sleep: float = 0.0
+
+
+EFFORTS = {"low", "medium", "high", "xhigh", "max"}
+
+
+@dataclass
 class Config:
     vault: Path | None = None
     inboxes: list[str] = field(default_factory=lambda: list(DEFAULT_INBOXES))
     out: str = DEFAULT_OUT
     fetch: FetchConfig = field(default_factory=FetchConfig)
     ocr: OcrConfig = field(default_factory=OcrConfig)
+    enrich: EnrichConfig = field(default_factory=EnrichConfig)
 
 
 def load_config(path: Path | None) -> Config:
@@ -72,6 +85,13 @@ def load_config(path: Path | None) -> Config:
         )
         if cfg.ocr.fps <= 0:
             raise ConfigError("[ocr] fps must be positive")
+    if "enrich" in data:
+        cfg.enrich = _load_table("enrich", EnrichConfig, data["enrich"], ["sleep"])
+        if cfg.enrich.effort not in EFFORTS:
+            raise ConfigError(f"[enrich] effort must be one of {', '.join(sorted(EFFORTS))}")
+        cats = cfg.enrich.categories
+        if not isinstance(cats, list) or not all(isinstance(c, str) for c in cats):
+            raise ConfigError("[enrich] categories must be a list of strings")
     return cfg
 
 

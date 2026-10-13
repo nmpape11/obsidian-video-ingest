@@ -37,3 +37,15 @@ threads = 0
 # Drop OCR lines read with lower confidence (0-1).
 min_score = 0.8
 sleep = 2.0
+
+# Stage 3: video-enrich (pip install -e ".[enrich]", needs ANTHROPIC_API_KEY).
+# Sends caption + transcript + on-screen text (no images) to Claude, which fills the
+# Summary and Key points, picks categories and tags, and sets processed: true.
+[enrich]
+# claude-opus-5-5 (default), claude-sonnet-5-5, or claude-haiku-5-5 for lowest cost.
+model = "claude-opus-5-5"
+# low | medium | high | xhigh | max. low is plenty for summarizing.
+effort = "low"
+# Categories to offer from the start; ones already used in notes are added automatically.
+categories = ["Cooking", "Gym", "Self Help"]
+sleep = 0.0

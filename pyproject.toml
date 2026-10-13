@@ -27,6 +27,7 @@ all = ["obsidian-video-ingest[ocr,enrich]"]
 video-ingest = "video_ingest.cli:main"
 video-fetch = "video_ingest.fetch_cli:main"
 video-ocr = "video_ingest.ocr_cli:main"
+video-enrich = "video_ingest.enrich_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

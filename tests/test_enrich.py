@@ -113,3 +113,16 @@ def test_api_errors_fail_without_raising():
     result = ClaudeEnricher(client=client).enrich(SOURCES, [], [])
     assert not result.ok
     assert result.error == "ConnectionError: network down"
+
+
+def test_fatal_errors_propagate():
+    import anthropic
+    import httpx2
+
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    exc = anthropic.AuthenticationError(
+        "invalid x-api-key", response=httpx2.Response(401, request=request), body=None
+    )
+    client = SimpleNamespace(beta=SimpleNamespace(messages=FakeMessages(exc=exc)))
+    with pytest.raises(anthropic.AuthenticationError):
+        ClaudeEnricher(client=client).enrich(SOURCES, [], [])
