@@ -16,6 +16,9 @@ dev = ["pytest>=8", "ruff>=0.6"]
 # curl-cffi lets yt-dlp impersonate a browser; TikTok blocks plain requests.
 # av<19: PyAV 19 dropped av.open(metadata_errors=...), which faster-whisper 1.2 passes.
 fetch = ["yt-dlp[curl-cffi]>=2026.8.19", "faster-whisper>=1.1", "av>=11,<19"]
+# Stage 2b: read on-screen text from slideshow images and sampled video frames.
+# rapidocr doesn't pull in an inference runtime; av decodes frames (same pin as above).
+ocr = ["obsidian-video-ingest[fetch]", "rapidocr>=3.9,<4", "onnxruntime>=1.20", "av>=11,<19"]
 
 [project.scripts]
 video-ingest = "video_ingest.cli:main"
