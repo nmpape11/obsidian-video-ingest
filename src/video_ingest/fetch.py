@@ -98,6 +98,25 @@ class _SilentLogger:
     def error(self, msg: str) -> None: ...
 
 
+def ytdlp_options(
+    cookies_file: str | None = None,
+    cookies_from_browser: str | None = None,
+    impersonate: bool = True,
+) -> dict:
+    """Base YoutubeDL options shared by every stage that talks to the platforms."""
+    opts: dict = {"quiet": True, "no_warnings": True, "noprogress": True, "logger": _SilentLogger()}
+    if cookies_file:
+        opts["cookiefile"] = str(Path(cookies_file).expanduser())
+    if cookies_from_browser:
+        opts["cookiesfrombrowser"] = (cookies_from_browser,)
+    if impersonate:
+        # TikTok answers plain requests with a bot challenge.
+        from yt_dlp.networking.impersonate import ImpersonateTarget
+
+        opts["impersonate"] = ImpersonateTarget("chrome")
+    return opts
+
+
 class YtDlpFetcher:
     def __init__(
         self,
@@ -114,20 +133,7 @@ class YtDlpFetcher:
             raise RuntimeError('yt-dlp not installed; run: pip install -e ".[fetch]"') from exc
         self.whisper_model = whisper_model
         self.language = language or None
-        self.opts: dict = {
-            "quiet": True,
-            "no_warnings": True,
-            "noprogress": True,
-            "logger": _SilentLogger(),
-        }
-        if cookies_file:
-            self.opts["cookiefile"] = str(Path(cookies_file).expanduser())
-        if cookies_from_browser:
-            self.opts["cookiesfrombrowser"] = (cookies_from_browser,)
-        if impersonate:
-            from yt_dlp.networking.impersonate import ImpersonateTarget
-
-            self.opts["impersonate"] = ImpersonateTarget("chrome")
+        self.opts = ytdlp_options(cookies_file, cookies_from_browser, impersonate)
         self._model = None
 
     def fetch(self, url: str) -> FetchResult:

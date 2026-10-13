@@ -4,8 +4,9 @@ import pytest
 
 from video_ingest import frontmatter
 from video_ingest.fetch import FetchResult
-from video_ingest.fetch_cli import main, pending_notes
+from video_ingest.fetch_cli import main
 from video_ingest.notes import with_fetch_result
+from video_ingest.vault import pending_notes
 
 NOTE = """---
 url: {url}
@@ -121,7 +122,11 @@ def test_pending_skips_hidden_dirs(vault):
     hidden = vault / "notes" / ".trash"
     hidden.mkdir()
     (hidden / "d.md").write_text(NOTE.format(url="https://tiktok.com/@x/video/d"))
-    assert [p.stem for p in pending_notes(vault / "notes", False)] == ["a", "b", "c"]
+    assert [p.stem for p in pending_notes(vault / "notes", "fetch_status", False)] == [
+        "a",
+        "b",
+        "c",
+    ]
 
 
 def test_missing_notes_folder_errors(tmp_path):
@@ -143,3 +148,12 @@ def test_fetch_config_from_toml(vault, tmp_path):
     assert seen["cfg"].whisper_model == "small"
     assert seen["cfg"].language is None
     assert seen["cfg"].sleep == 0
+
+
+def test_pending_require_filters(vault):
+    notes = vault / "notes"
+    a = notes / "a.md"
+    a.write_text(frontmatter.set_fields(a.read_text(), {"fetch_status": "ok"}))
+    assert [p.stem for p in pending_notes(notes, "ocr_status", False, {"fetch_status": "ok"})] == [
+        "a"
+    ]

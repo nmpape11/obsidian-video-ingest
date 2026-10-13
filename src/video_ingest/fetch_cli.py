@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 import time
 from collections.abc import Callable
@@ -15,6 +14,7 @@ from . import frontmatter
 from .config import ConfigError, FetchConfig, load_config
 from .fetch import Fetcher, YtDlpFetcher
 from .notes import with_fetch_result
+from .vault import VaultError, notes_dir, pending_notes, write_atomic
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,29 +36,6 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def pending_notes(out_dir: Path, retry_failed: bool) -> list[Path]:
-    """Notes with a url and no fetch_status (or failed, when retrying), sorted by name."""
-    todo = []
-    for path in sorted(out_dir.rglob("*.md")):
-        if any(part.startswith(".") for part in path.relative_to(out_dir).parts):
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-            url = frontmatter.get(text, "url")
-            status = frontmatter.get(text, "fetch_status")
-        except (frontmatter.FrontmatterError, UnicodeDecodeError):
-            continue
-        if url and (status is None or (retry_failed and status == "failed")):
-            todo.append(path)
-    return todo
-
-
-def write_atomic(path: Path, text: str) -> None:
-    tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
-
-
 def main(
     argv: list[str] | None = None,
     make_fetcher: Callable[[FetchConfig], Fetcher] | None = None,
@@ -70,13 +47,10 @@ def main(
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    vault = args.vault or cfg.vault
-    if vault is None:
-        print("error: no vault given (use --vault or set 'vault' in config)", file=sys.stderr)
-        return 2
-    out_dir = vault.expanduser() / (args.out or cfg.out)
-    if not out_dir.is_dir():
-        print(f"error: notes folder not found: {out_dir}", file=sys.stderr)
+    try:
+        out_dir = notes_dir(args.vault, args.out, cfg)
+    except VaultError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
 
     fcfg = replace(
@@ -88,7 +62,7 @@ def main(
         sleep=cfg.fetch.sleep if args.sleep is None else args.sleep,
     )
 
-    todo = pending_notes(out_dir, args.retry_failed)
+    todo = pending_notes(out_dir, "fetch_status", args.retry_failed)
     if args.limit is not None:
         todo = todo[: args.limit]
     if not args.apply:
