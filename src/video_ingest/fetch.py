@@ -84,6 +84,11 @@ def pick_subtitles(info: dict) -> dict | None:
     return None
 
 
+def has_speech_track(info: dict) -> bool:
+    """False for TikTok photo slideshows, whose only format is the background music."""
+    return any(f.get("format_id") != "audio" for f in info.get("formats") or [])
+
+
 class YtDlpFetcher:
     def __init__(
         self,
@@ -130,7 +135,7 @@ class YtDlpFetcher:
                         vtt = ydl.urlopen(sub["url"]).read().decode("utf-8", "replace")
                         result.transcript = vtt_to_text(vtt)
                         result.transcript_source = "subtitles"
-                    if not result.transcript:
+                    if not result.transcript and has_speech_track(info):
                         ydl.process_ie_result(info, download=True)
                         audio = next((p for p in Path(tmp).iterdir() if p.is_file()), None)
                         if audio is None:

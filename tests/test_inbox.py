@@ -69,6 +69,7 @@ def test_parse_inbox_keeps_non_entries():
         ("https://tiktok.com/@a/video/1", "https://www.tiktok.com/@a/video/1"),
         ("https://instagram.com/reel/X", "https://www.instagram.com/reel/X"),
         ("https://vm.tiktok.com/ZM1", "https://vm.tiktok.com/ZM1"),
+        ("https://tiktok.com/@a/photo/7", "https://www.tiktok.com/@a/video/7"),
     ],
 )
 def test_fetchable_url(stored, expected):

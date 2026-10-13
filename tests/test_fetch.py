@@ -1,6 +1,12 @@
 import pytest
 
-from video_ingest.fetch import clean_caption, pick_subtitles, short_error, vtt_to_text
+from video_ingest.fetch import (
+    clean_caption,
+    has_speech_track,
+    pick_subtitles,
+    short_error,
+    vtt_to_text,
+)
 
 VTT = """WEBVTT
 Kind: captions
@@ -61,3 +67,9 @@ def test_short_error_strips_prefix_colour_and_extra_lines():
     exc = Exception("\x1b[0;31mERROR:\x1b[0m [TikTok] 1: Blocked\nTraceback ...")
     assert short_error(exc) == "[TikTok] 1: Blocked"
     assert short_error(ValueError()) == "ValueError"
+
+
+def test_has_speech_track():
+    assert not has_speech_track({"formats": [{"format_id": "audio"}]})  # photo slideshow
+    assert not has_speech_track({})
+    assert has_speech_track({"formats": [{"format_id": "audio"}, {"format_id": "h264_540p"}]})

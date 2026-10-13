@@ -65,12 +65,17 @@ def fetchable_url(url: str) -> str:
     """Turn a stored (normalized) URL back into one yt-dlp's extractors match.
 
     normalize_url drops "www." for dedupe, but the TikTok/Instagram extractors only
-    match the www host. Short links (vm./vt.tiktok.com) are left alone.
+    match the www host. TikTok photo slideshows (/photo/<id>) aren't matched at all, but
+    the same id resolves via /video/<id>. Short links (vm./vt.tiktok.com) are left alone.
     """
     parts = urlsplit(url)
-    if _host(parts.netloc) in ("tiktok.com", "instagram.com"):
-        return urlunsplit(("https", "www." + _host(parts.netloc), parts.path, "", ""))
-    return url
+    host = _host(parts.netloc)
+    if host not in ("tiktok.com", "instagram.com"):
+        return url
+    path = parts.path
+    if host == "tiktok.com":
+        path = re.sub(r"^(/@[^/]+)/photo/", r"\1/video/", path)
+    return urlunsplit(("https", "www." + host, path, "", ""))
 
 
 def parse_line(line: str) -> Entry | None:
