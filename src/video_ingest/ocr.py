@@ -7,6 +7,7 @@ ordered list. Media download and the OCR engine live in ocr_media.py.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
@@ -29,9 +30,16 @@ class OcrResult:
     error: str = ""
 
 
+BULLET_RE = re.compile(r"^[-–—•·*>]+\s*")
+
+
 def norm(text: str) -> str:
-    """Lowercase letters and digits only: the comparison key for OCR lines."""
-    return "".join(ch for ch in text.lower() if ch.isalnum())
+    """Lowercase ASCII-folded letters and digits only: the comparison key for OCR lines.
+
+    Accents are dropped because OCR adds them at random ("Pér burrito").
+    """
+    folded = unicodedata.normalize("NFKD", text.lower())
+    return "".join(ch for ch in folded if ch.isalnum() and not unicodedata.combining(ch))
 
 
 def within_one_edit(a: str, b: str) -> bool:
@@ -91,7 +99,7 @@ def consolidate(
     spellings: list[Counter[str]] = []
     for image in images:
         for line in image:
-            text = re.sub(r"\s+", " ", line).strip()
+            text = BULLET_RE.sub("", re.sub(r"\s+", " ", line).strip())
             if is_noise(text, handles):
                 continue
             n = norm(text)
@@ -104,10 +112,15 @@ def consolidate(
 
     spoken = norm(transcript)
     out = []
-    for counter in spellings:
+    for i, counter in enumerate(spellings):
         best = counter.most_common(1)[0][0]  # ties keep the first-seen spelling
         n = norm(best)
         if spoken and len(n) >= MIN_TRANSCRIPT_MATCH and n in spoken:
+            continue
+        # Text that animates in gets caught half-typed ("4 SERVI" before "4 SERVINGS").
+        if len(n) >= 4 and any(
+            len(k) > len(n) and k.startswith(n) for j, k in enumerate(keys) if j != i
+        ):
             continue
         out.append(best)
     return out

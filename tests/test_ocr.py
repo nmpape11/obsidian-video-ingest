@@ -8,8 +8,8 @@ def frames(*texts):
     return [[t.strip() for t in img.split("|") if t.strip()] for img in texts]
 
 
-def test_norm():
-    assert norm("Oncé oil is hot; fry!") == "oncéoilishotfry"
+def test_norm_folds_accents_and_punctuation():
+    assert norm("Oncé oil is hot; fry!") == "onceoilishotfry"
 
 
 @pytest.mark.parametrize(
@@ -100,3 +100,20 @@ def test_within_one_edit(a, b, expected):
 def test_consolidate_merges_one_letter_misreads_of_short_words():
     assert consolidate(frames("Flour", "Flour", "Fiour")) == ["Flour"]
     assert consolidate(frames("Salt", "Sugar")) == ["Salt", "Sugar"]
+
+
+def test_consolidate_strips_on_screen_bullets():
+    assert consolidate(frames("- 60ml soy sauce", "• 3 eggs", "-- 10ml mirin")) == [
+        "60ml soy sauce",
+        "3 eggs",
+        "10ml mirin",
+    ]
+
+
+def test_consolidate_drops_half_typed_prefixes():
+    images = frames("4 SERVI", "4 SERVINGS", "Per burrito (makes", "Pér burrito (makes 6)")
+    assert consolidate(images) == ["4 SERVINGS", "Pér burrito (makes 6)"]
+
+
+def test_consolidate_keeps_short_prefixes():
+    assert consolidate(frames("Egg", "Eggs and milk")) == ["Egg", "Eggs and milk"]
