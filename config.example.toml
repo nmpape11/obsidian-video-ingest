@@ -11,3 +11,18 @@ inboxes = [
 
 # Folder that receives one note per video, relative to the vault.
 out = "10 Saved Videos"
+
+# Stage 2: video-fetch (pip install -e ".[fetch]")
+[fetch]
+# tiny | base | small | medium | large-v3. base is ~10s per short clip on CPU;
+# small is noticeably more accurate on names/ingredients but ~3x slower.
+whisper_model = "base"
+# Spoken language code (e.g. "en"); leave empty to auto-detect.
+language = ""
+# Instagram usually needs logged-in cookies. Export a Netscape cookies.txt
+# (gitignored as cookies*.txt) or read them from a local browser profile.
+# Note: under WSL, cookies_from_browser can't see Windows browsers; use a file.
+cookies_file = ""
+cookies_from_browser = ""
+# Seconds between videos, to avoid rate limits.
+sleep = 2.0

@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
+from . import frontmatter
+from .fetch import FetchResult
 from .inbox import Entry, normalize_url, parse_inbox
 
 MAX_NAME_LEN = 80
@@ -112,3 +114,47 @@ def apply_plan(plan: Plan, inbox_path: Path, created: date) -> None:
     shutil.copy2(inbox_path, inbox_path.with_name(inbox_path.name + ".bak"))
     remaining = "\n".join(plan.kept_lines).strip("\n")
     inbox_path.write_text(remaining + "\n" if remaining else "", encoding="utf-8")
+
+
+SOURCE_HEADING = "## Source"
+
+
+def callout(kind: str, title: str, text: str) -> str:
+    """Foldable Obsidian callout; collapsed so long transcripts don't bury the summary."""
+    lines = [f"> [!{kind}]- {title}"]
+    lines += [f"> {line}" if line else ">" for line in text.splitlines()]
+    return "\n".join(lines)
+
+
+def with_fetch_result(text: str, result: FetchResult, fetched: date) -> str:
+    """Record a fetch in the note: frontmatter fields, plus a Source section on success."""
+    if not result.ok:
+        return frontmatter.set_fields(
+            text, {"fetch_status": "failed", "fetched": fetched, "fetch_error": result.error}
+        )
+
+    text = frontmatter.set_fields(
+        text,
+        {
+            "author": result.author or None,
+            "duration": result.duration,
+            "uploaded": result.uploaded,
+            "transcript_source": result.transcript_source,
+            "fetch_status": "ok",
+            "fetched": fetched,
+            "fetch_error": None,
+        },
+    )
+    if f"\n{SOURCE_HEADING}\n" in text:
+        return text
+
+    blocks = []
+    if result.caption:
+        blocks.append(callout("info", "Caption", result.caption))
+    if result.transcript:
+        blocks.append(
+            callout("quote", f"Transcript ({result.transcript_source})", result.transcript)
+        )
+    if not blocks:
+        return text
+    return text.rstrip("\n") + f"\n\n{SOURCE_HEADING}\n\n" + "\n\n".join(blocks) + "\n"

@@ -63,3 +63,17 @@ def test_cli_flag_overrides_config_inboxes(tmp_path):
 
 def test_cli_requires_vault():
     assert main([]) == 2
+
+
+def test_unknown_fetch_key_errors(tmp_path):
+    path = tmp_path / "c.toml"
+    path.write_text("[fetch]\nwhsiper_model = 'small'\n")
+    with pytest.raises(ConfigError, match="whsiper_model"):
+        load_config(path)
+
+
+def test_example_config_fetch_section():
+    example = Path(__file__).parents[1] / "config.example.toml"
+    fetch = load_config(example).fetch
+    assert fetch.whisper_model == "base"
+    assert fetch.cookies_file is None

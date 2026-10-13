@@ -16,10 +16,20 @@ class ConfigError(ValueError):
 
 
 @dataclass
+class FetchConfig:
+    whisper_model: str = "base"
+    language: str | None = None  # None lets Whisper auto-detect
+    cookies_file: str | None = None
+    cookies_from_browser: str | None = None
+    sleep: float = 2.0  # seconds between videos, to stay under rate limits
+
+
+@dataclass
 class Config:
     vault: Path | None = None
     inboxes: list[str] = field(default_factory=lambda: list(DEFAULT_INBOXES))
     out: str = DEFAULT_OUT
+    fetch: FetchConfig = field(default_factory=FetchConfig)
 
 
 def load_config(path: Path | None) -> Config:
@@ -45,4 +55,19 @@ def load_config(path: Path | None) -> Config:
         cfg.inboxes = inboxes
     if "out" in data:
         cfg.out = str(data["out"])
+    if "fetch" in data:
+        cfg.fetch = _load_fetch(data["fetch"])
     return cfg
+
+
+def _load_fetch(table: object) -> FetchConfig:
+    if not isinstance(table, dict):
+        raise ConfigError("[fetch] must be a table")
+    known = set(FetchConfig.__dataclass_fields__)
+    unknown = set(table) - known
+    if unknown:
+        raise ConfigError(f"unknown [fetch] keys: {', '.join(sorted(unknown))}")
+    fetch = FetchConfig(**{k: v for k, v in table.items() if v != ""})
+    if not isinstance(fetch.sleep, int | float) or fetch.sleep < 0:
+        raise ConfigError("[fetch] sleep must be a non-negative number")
+    return fetch

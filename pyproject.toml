@@ -19,6 +19,7 @@ fetch = ["yt-dlp[curl-cffi]>=2026.8.19", "faster-whisper>=1.1", "av>=11,<19"]
 
 [project.scripts]
 video-ingest = "video_ingest.cli:main"
+video-fetch = "video_ingest.fetch_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
