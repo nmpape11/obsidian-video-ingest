@@ -53,7 +53,8 @@ Each stage is a separate rerunnable command that reads and writes the vault.
 ## Note schema (keep in sync)
 
 `url`, `platform` (`tiktok`|`instagram`), `source_title`, `created` (YYYY-MM-DD),
-`category` (list of `"[[Wikilink]]"`), `tags` (list), `status` (`to-try`|`tried`|`keeper`),
+`category` (list of `"[[Wikilink]]"`, only names from `[enrich] categories`), `tags` (free-form,
+hashtag-style), `status` (`to-try`|`tried`|`keeper`),
 `processed` (bool). Body: `## Summary`, `## Key points`.
 Added by fetch: `author`, `duration` (s), `uploaded`, `transcript_source`
 (`subtitles`|`whisper`|`none`), `fetch_status` (`ok`|`failed`), `fetched`, `fetch_error`,
@@ -91,6 +92,10 @@ Added by enrich: `enriched`, `enrich_model` (model that answered, may be a fallb
 - Opus 5.5 / Sonnet 5.5 reject `thinking: disabled`, `budget_tokens`, sampling params and
   forced `tool_choice`; structured output via `output_format=<pydantic model>` instead.
 - Auth / permission / not-found errors raise (stop the run); everything else is per-note.
+- Categories are a fixed, queryable list (`[enrich] categories`, default Cooking / Gym /
+  Self Help / Other), enforced by an enum in the schema (`schema_for`). Never let the model
+  invent categories; to add one, add it to config. Tags are loose; generic reach hashtags
+  (`GENERIC_TAGS`: fyp, viral, ...) are dropped.
 - Keep `SYSTEM_PROMPT` byte-stable (it's the cached prefix); per-note data goes in the
   user turn. Fraction rule: fix OCR quantities only when context makes them clear.
 - Tests use fake clients; never call the real API from tests (it costs money).
