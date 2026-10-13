@@ -17,6 +17,9 @@ BARE_RE = re.compile(r"^[A-Za-z_][\w.-]*$")
 YAML_KEYWORDS = {"true", "false", "yes", "no", "on", "off", "null", "y", "n"}
 
 Scalar = str | int | float | bool | date | None
+Value = Scalar | list[str]
+FLOW_ITEM_RE = re.compile(r'\s*("(?:[^"\\]|\\.)*"|\'[^\']*\'|[^,]+?)\s*(?:,|$)')
+BLOCK_ITEM_RE = re.compile(r"^\s*-\s?(.*)$")
 
 
 class FrontmatterError(ValueError):
@@ -34,17 +37,45 @@ def split(text: str) -> tuple[list[str], str]:
     raise FrontmatterError("unterminated frontmatter")
 
 
+def unquote(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        return json.loads(value) if value[0] == '"' else value[1:-1]
+    return value
+
+
 def get(text: str, key: str) -> str | None:
     """Raw value of a top-level scalar key, unquoted. None if absent or empty."""
     fm, _ = split(text)
     for line in fm:
         m = KEY_RE.match(line)
         if m and m.group(1) == key:
-            value = m.group(2).strip()
-            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-                value = json.loads(value) if value[0] == '"' else value[1:-1]
-            return value or None
+            return unquote(m.group(2)) or None
     return None
+
+
+def get_list(text: str, key: str) -> list[str]:
+    """Items of a list key in flow ([a, "b"]) or block ("- a") style; a scalar is one item."""
+    fm, _ = split(text)
+    for i, line in enumerate(fm):
+        m = KEY_RE.match(line)
+        if not (m and m.group(1) == key):
+            continue
+        value = m.group(2).strip()
+        if value.startswith("[") and value.endswith("]"):
+            inner = value[1:-1].strip()
+            return [unquote(x) for x in FLOW_ITEM_RE.findall(inner) if unquote(x)]
+        if value:
+            return [unquote(value)]
+        items = []
+        for nxt in fm[i + 1 :]:
+            item = BLOCK_ITEM_RE.match(nxt)
+            if not item:
+                break
+            if unquote(item.group(1)):
+                items.append(unquote(item.group(1)))
+        return items
+    return []
 
 
 def render(value: Scalar) -> str:
@@ -61,7 +92,14 @@ def render(value: Scalar) -> str:
     return json.dumps(text, ensure_ascii=False)
 
 
-def set_fields(text: str, fields: dict[str, Scalar]) -> str:
+def entry(key: str, value: Value) -> list[str]:
+    """Frontmatter lines for one key. Lists use block style, as Obsidian writes them."""
+    if isinstance(value, list):
+        return [f"{key}: []"] if not value else [f"{key}:", *(f"  - {render(v)}" for v in value)]
+    return [f"{key}: {render(value)}"]
+
+
+def set_fields(text: str, fields: dict[str, Value]) -> str:
     """Set or replace top-level keys; a value of None removes the key.
 
     A replaced key's continuation lines (indented or "- " list items) are dropped with it.
@@ -80,7 +118,7 @@ def set_fields(text: str, fields: dict[str, Scalar]) -> str:
                 skipping = True
                 done.add(key)
                 if fields[key] is not None:
-                    out.append(f"{key}: {render(fields[key])}")
+                    out.extend(entry(key, fields[key]))
                 continue
         elif skipping and (line.startswith((" ", "\t", "-")) or not line.strip()):
             continue
@@ -89,5 +127,5 @@ def set_fields(text: str, fields: dict[str, Scalar]) -> str:
         out.append(line)
     for key, value in fields.items():
         if key not in done and value is not None:
-            out.append(f"{key}: {render(value)}")
+            out.extend(entry(key, value))
     return "\n".join(["---", *out, "---"]) + "\n" + body

@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from video_ingest.frontmatter import FrontmatterError, get, render, set_fields, split
+from video_ingest.frontmatter import FrontmatterError, get, get_list, render, set_fields, split
 
 NOTE = """---
 url: https://tiktok.com/@a/video/1
@@ -79,3 +79,33 @@ def test_set_fields_is_idempotent():
 )
 def test_render_quotes_only_when_needed(value, rendered):
     assert render(value) == rendered
+
+
+def test_get_list_block_and_flow_styles():
+    assert get_list(NOTE, "category") == ["[[Cooking]]"]
+    assert get_list(NOTE, "tags") == ["a", "b"]
+    assert get_list(NOTE, "url") == ["https://tiktok.com/@a/video/1"]
+    assert get_list(NOTE, "missing") == []
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("tags: []", []),
+        (
+            "tags: [\"high-protein\", 'meal prep', air-fryer]",
+            ["high-protein", "meal prep", "air-fryer"],
+        ),
+        ('category: ["[[Self Help]]", "[[Gym]]"]', ["[[Self Help]]", "[[Gym]]"]),
+    ],
+)
+def test_get_list_flow_variants(line, expected):
+    key = line.split(":")[0]
+    assert get_list(f"---\n{line}\n---\n", key) == expected
+
+
+def test_set_fields_writes_block_lists_and_replaces_old_list():
+    out = set_fields(NOTE, {"category": ["[[Cooking]]", "[[Gym]]"], "tags": ["high-protein"]})
+    assert 'category:\n  - "[[Cooking]]"\n  - "[[Gym]]"\ntags:\n  - high-protein\nprocessed' in out
+    assert get_list(out, "category") == ["[[Cooking]]", "[[Gym]]"]
+    assert set_fields(out, {"tags": []}).count("tags: []") == 1
