@@ -26,3 +26,14 @@ cookies_file = ""
 cookies_from_browser = ""
 # Seconds between videos, to avoid rate limits.
 sleep = 2.0
+
+# Stage 2b: video-ocr (pip install -e ".[ocr]"). Reads text from slideshow images
+# and from video frames; runs on notes that already have fetch_status: ok.
+[ocr]
+# Video frames to read per second. 1 catches captions shown for ~1s; ~0.3s per frame.
+fps = 1.0
+# OCR threads; 0 = min(6, cores). More than ~6 is slower, not faster.
+threads = 0
+# Drop OCR lines read with lower confidence (0-1).
+min_score = 0.8
+sleep = 2.0

@@ -77,3 +77,23 @@ def test_example_config_fetch_section():
     fetch = load_config(example).fetch
     assert fetch.whisper_model == "base"
     assert fetch.cookies_file is None
+
+
+def test_ocr_config(tmp_path):
+    path = tmp_path / "c.toml"
+    path.write_text("[ocr]\nfps = 0.5\nthreads = 4\n")
+    ocr = load_config(path).ocr
+    assert (ocr.fps, ocr.threads, ocr.min_score) == (0.5, 4, 0.8)
+
+
+@pytest.mark.parametrize("body", ["fps = 0", "threads = -1", "sleep = true", "nope = 1"])
+def test_bad_ocr_config(tmp_path, body):
+    path = tmp_path / "c.toml"
+    path.write_text(f"[ocr]\n{body}\n")
+    with pytest.raises(ConfigError):
+        load_config(path)
+
+
+def test_example_config_ocr_section():
+    example = Path(__file__).parents[1] / "config.example.toml"
+    assert load_config(example).ocr.fps == 1.0

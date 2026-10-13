@@ -13,6 +13,7 @@ from pathlib import Path
 from . import frontmatter
 from .fetch import FetchResult
 from .inbox import Entry, normalize_url, parse_inbox
+from .ocr import OcrResult
 
 MAX_NAME_LEN = 80
 ILLEGAL_CHARS_RE = re.compile(r'[\\/:*?"<>|#^\[\]]')
@@ -117,6 +118,8 @@ def apply_plan(plan: Plan, inbox_path: Path, created: date) -> None:
 
 
 SOURCE_HEADING = "## Source"
+TRANSCRIPT_TITLE = "Transcript"
+OCR_TITLE = "On-screen text"
 
 
 def callout(kind: str, title: str, text: str) -> str:
@@ -153,8 +156,55 @@ def with_fetch_result(text: str, result: FetchResult, fetched: date) -> str:
         blocks.append(callout("info", "Caption", result.caption))
     if result.transcript:
         blocks.append(
-            callout("quote", f"Transcript ({result.transcript_source})", result.transcript)
+            callout("quote", f"{TRANSCRIPT_TITLE} ({result.transcript_source})", result.transcript)
         )
     if not blocks:
         return text
     return text.rstrip("\n") + f"\n\n{SOURCE_HEADING}\n\n" + "\n\n".join(blocks) + "\n"
+
+
+def callout_text(text: str, title: str) -> str:
+    """Body of the first callout whose title starts with `title`, or ""."""
+    head = re.compile(rf"^> \[!\w+\][-+]? {re.escape(title)}\b")
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        if head.match(line):
+            body = []
+            for ln in lines[i + 1 :]:
+                if not ln.startswith(">"):
+                    break
+                body.append(ln[2:] if ln.startswith("> ") else ln[1:])
+            return "\n".join(body).strip()
+    return ""
+
+
+def append_to_section(text: str, heading: str, block: str) -> str:
+    """Add block at the end of the `heading` section, creating the section if missing."""
+    lines = text.rstrip("\n").split("\n")
+    if heading not in lines:
+        return "\n".join(lines) + f"\n\n{heading}\n\n{block}\n"
+    start = lines.index(heading)
+    end = next(
+        (i for i in range(start + 1, len(lines)) if re.match(r"#{1,2} ", lines[i])), len(lines)
+    )
+    body_end = end
+    while body_end > start + 1 and not lines[body_end - 1].strip():
+        body_end -= 1
+    rest = lines[end:]
+    out = lines[:body_end] + ["", *block.split("\n")] + ([""] + rest if rest else [])
+    return "\n".join(out) + "\n"
+
+
+def with_ocr_result(text: str, result: OcrResult) -> str:
+    """Record OCR in the note: frontmatter fields, plus an on-screen text callout."""
+    if not result.ok:
+        return frontmatter.set_fields(text, {"ocr_status": "failed", "ocr_error": result.error})
+    text = frontmatter.set_fields(
+        text, {"ocr_status": "ok", "ocr_source": result.source, "ocr_error": None}
+    )
+    if not result.lines or callout_text(text, OCR_TITLE):
+        return text
+    body = "\n".join(f"- {line}" for line in result.lines)
+    return append_to_section(
+        text, SOURCE_HEADING, callout("abstract", f"{OCR_TITLE} ({result.source})", body)
+    )

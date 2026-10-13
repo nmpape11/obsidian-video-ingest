@@ -23,6 +23,7 @@ ocr = ["obsidian-video-ingest[fetch]", "rapidocr>=3.9,<4", "onnxruntime>=1.20", 
 [project.scripts]
 video-ingest = "video_ingest.cli:main"
 video-fetch = "video_ingest.fetch_cli:main"
+video-ocr = "video_ingest.ocr_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

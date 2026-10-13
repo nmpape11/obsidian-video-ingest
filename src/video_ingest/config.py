@@ -25,11 +25,20 @@ class FetchConfig:
 
 
 @dataclass
+class OcrConfig:
+    fps: float = 1.0  # frames per second of video to read
+    threads: int = 0  # OCR threads; 0 = min(6, cores)
+    min_score: float = 0.8  # drop OCR lines read with lower confidence
+    sleep: float = 2.0
+
+
+@dataclass
 class Config:
     vault: Path | None = None
     inboxes: list[str] = field(default_factory=lambda: list(DEFAULT_INBOXES))
     out: str = DEFAULT_OUT
     fetch: FetchConfig = field(default_factory=FetchConfig)
+    ocr: OcrConfig = field(default_factory=OcrConfig)
 
 
 def load_config(path: Path | None) -> Config:
@@ -56,18 +65,26 @@ def load_config(path: Path | None) -> Config:
     if "out" in data:
         cfg.out = str(data["out"])
     if "fetch" in data:
-        cfg.fetch = _load_fetch(data["fetch"])
+        cfg.fetch = _load_table("fetch", FetchConfig, data["fetch"], ["sleep"])
+    if "ocr" in data:
+        cfg.ocr = _load_table(
+            "ocr", OcrConfig, data["ocr"], ["fps", "threads", "min_score", "sleep"]
+        )
+        if cfg.ocr.fps <= 0:
+            raise ConfigError("[ocr] fps must be positive")
     return cfg
 
 
-def _load_fetch(table: object) -> FetchConfig:
+def _load_table(name: str, cls: type, table: object, numbers: list[str]):
+    """Build a dataclass from a TOML table; "" means "use the default"."""
     if not isinstance(table, dict):
-        raise ConfigError("[fetch] must be a table")
-    known = set(FetchConfig.__dataclass_fields__)
-    unknown = set(table) - known
+        raise ConfigError(f"[{name}] must be a table")
+    unknown = set(table) - set(cls.__dataclass_fields__)
     if unknown:
-        raise ConfigError(f"unknown [fetch] keys: {', '.join(sorted(unknown))}")
-    fetch = FetchConfig(**{k: v for k, v in table.items() if v != ""})
-    if not isinstance(fetch.sleep, int | float) or fetch.sleep < 0:
-        raise ConfigError("[fetch] sleep must be a non-negative number")
-    return fetch
+        raise ConfigError(f"unknown [{name}] keys: {', '.join(sorted(unknown))}")
+    obj = cls(**{k: v for k, v in table.items() if v != ""})
+    for key in numbers:
+        value = getattr(obj, key)
+        if isinstance(value, bool) or not isinstance(value, int | float) or value < 0:
+            raise ConfigError(f"[{name}] {key} must be a non-negative number")
+    return obj
