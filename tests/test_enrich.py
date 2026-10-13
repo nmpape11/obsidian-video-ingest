@@ -61,6 +61,11 @@ def test_clean_category_snaps_to_known_spelling():
     assert clean_category("Desserts", ["Cooking"]) == "Desserts"
 
 
+def test_clean_category_title_cases_new_lowercase_names():
+    assert clean_category("meal prep", []) == "Meal Prep"
+    assert clean_category("DIY", []) == "DIY"
+
+
 def test_enrich_success_cleans_output_and_sends_request():
     e, messages = enricher()
     result = e.enrich(SOURCES, ["Cooking"], ["smoothie-bowl"])

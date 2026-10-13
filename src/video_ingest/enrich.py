@@ -107,7 +107,11 @@ def clean_tag(tag: str) -> str:
 def clean_category(name: str, known: list[str]) -> str:
     """Strip [[...]] wrappers and snap to a known category's exact spelling."""
     name = name.strip().removeprefix("[[").removesuffix("]]").strip()
-    return next((k for k in known if k.lower() == name.lower()), name)
+    known_match = next((k for k in known if k.lower() == name.lower()), None)
+    if known_match:
+        return known_match
+    # New categories become note links, so "cooking" and "Cooking" must not both appear.
+    return name.title() if name.islower() else name
 
 
 def dedupe(items: list[str]) -> list[str]:
