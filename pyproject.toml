@@ -19,6 +19,9 @@ fetch = ["yt-dlp[curl-cffi]>=2026.8.19", "faster-whisper>=1.1", "av>=11,<19"]
 # Stage 2b: read on-screen text from slideshow images and sampled video frames.
 # rapidocr doesn't pull in an inference runtime; av decodes frames (same pin as above).
 ocr = ["obsidian-video-ingest[fetch]", "rapidocr>=3.9,<4", "onnxruntime>=1.20", "av>=11,<19"]
+# Stage 3: summarize/categorize notes with the Claude API (needs ANTHROPIC_API_KEY).
+enrich = ["anthropic>=1.9,<2"]
+all = ["obsidian-video-ingest[ocr,enrich]"]
 
 [project.scripts]
 video-ingest = "video_ingest.cli:main"
