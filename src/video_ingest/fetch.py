@@ -89,6 +89,15 @@ def has_speech_track(info: dict) -> bool:
     return any(f.get("format_id") != "audio" for f in info.get("formats") or [])
 
 
+class _SilentLogger:
+    """yt-dlp prints ERROR lines even with quiet=True; errors reach us as exceptions."""
+
+    def debug(self, msg: str) -> None: ...
+    def info(self, msg: str) -> None: ...
+    def warning(self, msg: str) -> None: ...
+    def error(self, msg: str) -> None: ...
+
+
 class YtDlpFetcher:
     def __init__(
         self,
@@ -105,7 +114,12 @@ class YtDlpFetcher:
             raise RuntimeError('yt-dlp not installed; run: pip install -e ".[fetch]"') from exc
         self.whisper_model = whisper_model
         self.language = language or None
-        self.opts: dict = {"quiet": True, "no_warnings": True, "noprogress": True}
+        self.opts: dict = {
+            "quiet": True,
+            "no_warnings": True,
+            "noprogress": True,
+            "logger": _SilentLogger(),
+        }
         if cookies_file:
             self.opts["cookiefile"] = str(Path(cookies_file).expanduser())
         if cookies_from_browser:
