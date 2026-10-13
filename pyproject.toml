@@ -14,7 +14,8 @@ dependencies = []
 dev = ["pytest>=8", "ruff>=0.6"]
 # Stage 2: download captions/audio and transcribe locally.
 # curl-cffi lets yt-dlp impersonate a browser; TikTok blocks plain requests.
-fetch = ["yt-dlp[curl-cffi]>=2026.8.19", "faster-whisper>=1.1"]
+# av<19: PyAV 19 dropped av.open(metadata_errors=...), which faster-whisper 1.2 passes.
+fetch = ["yt-dlp[curl-cffi]>=2026.8.19", "faster-whisper>=1.1", "av>=11,<19"]
 
 [project.scripts]
 video-ingest = "video_ingest.cli:main"
