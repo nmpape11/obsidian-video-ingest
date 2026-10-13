@@ -45,8 +45,7 @@ def main(argv: list[str] | None = None) -> int:
     for line in unparsed:
         print(f"? unparsed, left in inbox: {line.strip()}")
     print(
-        f"\n{len(plan.to_create)} new, {len(plan.duplicates)} duplicate, "
-        f"{len(unparsed)} unparsed"
+        f"\n{len(plan.to_create)} new, {len(plan.duplicates)} duplicate, {len(unparsed)} unparsed"
     )
 
     if not args.apply:

@@ -35,7 +35,7 @@ def _host(netloc: str) -> str:
     host = netloc.lower().split("@")[-1].split(":")[0]
     for prefix in ("www.", "m."):
         if host.startswith(prefix):
-            host = host[len(prefix):]
+            host = host[len(prefix) :]
     return host
 
 
@@ -66,7 +66,7 @@ def parse_line(line: str) -> Entry | None:
     md = MD_LINK_RE.search(line)
     if md:
         url, title = md.group(2), md.group(1)
-        rest = (line[: md.start()] + line[md.end():])
+        rest = line[: md.start()] + line[md.end() :]
     else:
         urls = URL_RE.findall(line)
         if len(urls) != 1:
